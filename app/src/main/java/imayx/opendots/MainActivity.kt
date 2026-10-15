@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubble
@@ -13,11 +14,7 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartToy
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -35,6 +33,8 @@ import imayx.opendots.api.Space
 import imayx.opendots.ai.AiGroup
 import imayx.opendots.api.Dot
 import imayx.opendots.node.NodeManager
+import imayx.opendots.ui.components.OdBottomNav
+import imayx.opendots.ui.components.OdNavDestination
 import imayx.opendots.ui.screens.GroupChatScreen
 import imayx.opendots.ui.screens.AiHubScreen
 import imayx.opendots.ui.screens.AiProvidersScreen
@@ -113,22 +113,27 @@ private fun AppNav(
     Scaffold(
         bottomBar = {
             if (showBottomBar) {
-                NavigationBar {
-                    val current = currentRoute
-                    destinations.forEach { dest ->
-                        NavigationBarItem(
-                            selected = current == dest.route,
-                            onClick = {
-                                navController.navigate(dest.route) {
-                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = { Icon(dest.icon, contentDescription = dest.label) },
-                            label = { Text(dest.label) },
-                        )
-                    }
+                // Floating rounded bar: inset from the screen edges and above
+                // the system navigation bar / gesture area.
+                Box(
+                    Modifier
+                        .navigationBarsPadding()
+                        .padding(horizontal = 16.dp)
+                        .padding(bottom = 12.dp),
+                ) {
+                    OdBottomNav(
+                        destinations = destinations.map {
+                            OdNavDestination(it.route, it.label, it.icon)
+                        },
+                        currentRoute = currentRoute,
+                        onSelect = { route ->
+                            navController.navigate(route) {
+                                popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                    )
                 }
             }
         },

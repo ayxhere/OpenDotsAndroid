@@ -17,7 +17,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -40,7 +39,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import imayx.opendots.BuildConfig
 import imayx.opendots.api.ApiClient
@@ -48,6 +46,9 @@ import imayx.opendots.api.SetupStatus
 import imayx.opendots.auth.TokenStore
 import imayx.opendots.node.BackendService
 import imayx.opendots.node.NodeManager
+import imayx.opendots.ui.components.OdHeader
+import imayx.opendots.ui.components.OdSectionCard
+import imayx.opendots.ui.theme.OdSpacing
 import imayx.opendots.ui.theme.ThemeMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -73,8 +74,10 @@ fun SettingsScreen(
 
     LaunchedEffect(backendState) {
         if (backendState is NodeManager.BackendState.Ready) {
-            when (val s = api.getState()) {
-                is ApiClient.ApiResult.Ok -> setup = s.value.configured
+            // Rich setup status lives on GET /api/workspace -> .setup
+            // (/api/state only returns a boolean `configured` flag).
+            when (val s = api.getWorkspace()) {
+                is ApiClient.ApiResult.Ok -> setup = s.value.setup
                 else -> {}
             }
         }
@@ -87,12 +90,16 @@ fun SettingsScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = OdSpacing.screen),
+        verticalArrangement = Arrangement.spacedBy(OdSpacing.m),
     ) {
-        Text("Settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(OdSpacing.s))
+        OdHeader(
+            title = "Settings",
+            subtitle = "App, backend and AI configuration",
+        )
 
-        SectionCard("Appearance") {
+        OdSectionCard("Appearance") {
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 ThemeMode.entries.forEachIndexed { i, mode ->
                     SegmentedButton(
@@ -113,7 +120,7 @@ fun SettingsScreen(
             }
         }
 
-        SectionCard("Backend") {
+        OdSectionCard("Backend") {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -146,7 +153,7 @@ fun SettingsScreen(
             )
         }
 
-        SectionCard(
+        OdSectionCard(
             title = "AI providers",
             action = {
                 TextButton(onClick = onOpenAiProviders) { Text("Manage") }
@@ -169,7 +176,8 @@ fun SettingsScreen(
                 ProviderRow("Model", setup!!.model, "OPENAI_API_KEY + OPENAI_MODEL")
                 ProviderRow("Web research", setup!!.browser || true, "Parallel (default)")
                 ProviderRow("Voice", setup!!.voice, "VOICE_API_KEY + VOICE_MODEL")
-                ProviderRow("Slack channel", setup!!.slack, "SLACK_* settings")
+                // Backend sends a status string: "online" | "not_configured" | "setup_required" | "activation_failed".
+                ProviderRow("Slack channel", setup!!.slack == "online", "SLACK_* settings")
                 if (setup!!.missing.isNotEmpty()) {
                     Text(
                         "Still needed: ${setup!!.missing.joinToString(", ")}",
@@ -184,18 +192,18 @@ fun SettingsScreen(
                 } else {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Filled.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(OdSpacing.s))
                         Text("All configured.")
                     }
                 }
             }
         }
 
-        SectionCard(
+        OdSectionCard(
             title = "Runtime logs",
             action = {
                 Row {
-                    TextButton(onClick = { nodeManager.refreshLogTail(); }) { Text("Refresh") }
+                    TextButton(onClick = { nodeManager.refreshLogTail() }) { Text("Refresh") }
                     TextButton(onClick = onToggleLogs) { Text(if (showLogs) "Hide" else "Show") }
                 }
             },
@@ -220,7 +228,7 @@ fun SettingsScreen(
             }
         }
 
-        SectionCard("Diagnostics") {
+        OdSectionCard("Diagnostics") {
             DiagRow("App version", "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
             DiagRow("Node runtime", "24.20.0 (digidem nodejs-mobile, full build)")
             DiagRow("Backend bundle", bundleVersion)
@@ -229,10 +237,10 @@ fun SettingsScreen(
             DiagRow("Backend state", backendState.javaClass.simpleName)
         }
 
-        SectionCard("Privacy") {
+        OdSectionCard("Privacy") {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Filled.Info, null, tint = MaterialTheme.colorScheme.secondary)
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(OdSpacing.s))
                 Text(
                     "Local-first: your workspace database never leaves this phone except for the " +
                         "AI provider calls you configure. The per-install API token lives in " +
@@ -243,27 +251,7 @@ fun SettingsScreen(
             }
         }
 
-        Spacer(Modifier.height(72.dp))
-    }
-}
-
-@Composable
-private fun SectionCard(
-    title: String,
-    action: @Composable (() -> Unit)? = null,
-    content: @Composable () -> Unit,
-) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                action?.invoke()
-            }
-            content()
-        }
+        Spacer(Modifier.height(OdSpacing.navClearance))
     }
 }
 
@@ -275,7 +263,7 @@ private fun ProviderRow(name: String, configured: Boolean, hint: String) {
             contentDescription = null,
             tint = if (configured) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(OdSpacing.s))
         Column {
             Text(name, fontWeight = FontWeight.Medium)
             Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

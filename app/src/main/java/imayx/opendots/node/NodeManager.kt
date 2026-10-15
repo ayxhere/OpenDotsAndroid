@@ -179,11 +179,28 @@ class NodeManager(private val appContext: Context) {
         scope.launch(Dispatchers.IO) {
             _logTail.value = try {
                 if (!logFile.exists()) return@launch
-                logFile.readLines().takeLast(lines)
+                tailLines(logFile, lines)
             } catch (_: Throwable) {
                 listOf("(could not read log file)")
             }
         }
+    }
+
+    /**
+     * Reads the last [lines] lines without loading the whole file into
+     * memory (the node log can grow large over a long session).
+     */
+    private fun tailLines(file: File, lines: Int): List<String> {
+        val deque = ArrayDeque<String>(lines)
+        file.bufferedReader().use { reader ->
+            var line = reader.readLine()
+            while (line != null) {
+                if (deque.size == lines) deque.removeFirst()
+                deque.addLast(line)
+                line = reader.readLine()
+            }
+        }
+        return deque.toList()
     }
 
     // ---- internals ----

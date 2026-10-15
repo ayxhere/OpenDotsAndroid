@@ -14,12 +14,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -32,7 +35,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -44,13 +46,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import imayx.opendots.api.ApiClient
 import imayx.opendots.api.ApiClient.ApiResult
 import imayx.opendots.api.Dot
 import imayx.opendots.api.Space
 import imayx.opendots.auth.TokenStore
 import imayx.opendots.node.NodeManager
+import imayx.opendots.ui.components.OdEmpty
+import imayx.opendots.ui.components.OdHeader
+import imayx.opendots.ui.components.OdLoading
+import imayx.opendots.ui.components.formatInstant
+import imayx.opendots.ui.theme.OdSpacing
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -88,13 +94,15 @@ fun DotsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Dots") },
+            OdHeader(
+                title = "Dots",
+                subtitle = if (dots.isNotEmpty()) "${dots.size} AI assistants" else null,
+                modifier = Modifier.padding(horizontal = OdSpacing.screen).padding(top = OdSpacing.s),
                 actions = {
                     IconButton(onClick = { refresh() }) {
                         Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
                     }
-                }
+                },
             )
         },
         floatingActionButton = {
@@ -106,47 +114,73 @@ fun DotsScreen(
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
-                loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                dots.isEmpty() -> Text(
-                    "No dots yet. A Dot is an AI assistant with its own instructions and tool permissions.",
-                    Modifier.align(Alignment.Center).padding(32.dp),
-                    style = MaterialTheme.typography.bodyLarge
+                loading -> OdLoading(
+                    text = "Loading dots…",
+                    modifier = Modifier.align(Alignment.Center),
+                )
+                dots.isEmpty() -> OdEmpty(
+                    title = "No dots yet",
+                    body = "A Dot is an AI assistant with its own instructions and tool permissions.",
+                    icon = Icons.Filled.SmartToy,
+                    actionLabel = "New dot",
+                    onAction = { showCreate = true },
+                    modifier = Modifier.align(Alignment.Center).fillMaxWidth(),
                 )
                 else -> LazyColumn(
-                    contentPadding = PaddingValues(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    contentPadding = PaddingValues(
+                        start = OdSpacing.screen,
+                        end = OdSpacing.screen,
+                        top = OdSpacing.m,
+                        bottom = OdSpacing.navClearance,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(OdSpacing.s),
                 ) {
                     items(dots, key = { it.id }) { dot ->
                         Card(
-                            Modifier.fillMaxWidth().clickable { onOpenDot(dot) }
+                            modifier = Modifier.fillMaxWidth().clickable { onOpenDot(dot) },
+                            shape = MaterialTheme.shapes.medium,
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                            ),
                         ) {
                             Row(
-                                Modifier.fillMaxWidth().padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                Modifier.fillMaxWidth().padding(OdSpacing.l),
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Icon(
                                     Icons.Filled.SmartToy,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
+                                    tint = MaterialTheme.colorScheme.primary,
                                 )
-                                Spacer(Modifier.padding(6.dp))
+                                Spacer(Modifier.padding(OdSpacing.s))
                                 Column(Modifier.weight(1f)) {
-                                    Text(dot.name, style = MaterialTheme.typography.titleMedium)
                                     Text(
-                                        dot.instructions,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
+                                        dot.name,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
                                     )
+                                    if (dot.instructions.isNotBlank()) {
+                                        Text(
+                                            dot.instructions,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
                                     Text(
                                         buildString {
                                             append(if (dot.researchAllowed) "Research on" else "Research off")
                                             append(" · ")
                                             append(if (dot.memoryAllowed) "Memory on" else "Memory off")
+                                            val created = formatInstant(dot.createdAt)
+                                            if (created.isNotEmpty()) append(" · $created")
                                         },
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
                                     )
                                 }
                             }
@@ -166,53 +200,44 @@ fun DotsScreen(
         var creating by remember { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = { if (!creating) showCreate = false },
+            shape = MaterialTheme.shapes.large,
             title = { Text("New dot") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(OdSpacing.s)) {
                     if (spaces.isEmpty()) {
                         Text(
                             "Create a Space first — a Dot must belong to a space.",
                             color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyMedium
+                            style = MaterialTheme.typography.bodyMedium,
                         )
                     } else {
                         var expanded by remember { mutableStateOf(false) }
                         val selectedName = spaces.find { it.id == selectedSpaceId }?.name ?: "Select space"
-                        OutlinedTextField(
-                            value = selectedName,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Space") },
-                            trailingIcon = {
-                                IconButton(onClick = { expanded = true }) {
-                                    Icon(Icons.Filled.Add, contentDescription = "Choose space")
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        // Simple space picker via dialog
-                        if (expanded) {
-                            AlertDialog(
-                                onDismissRequest = { expanded = false },
-                                title = { Text("Choose space") },
-                                text = {
-                                    Column {
-                                        spaces.forEach { s ->
-                                            TextButton(
-                                                onClick = {
-                                                    selectedSpaceId = s.id
-                                                    expanded = false
-                                                },
-                                                modifier = Modifier.fillMaxWidth()
-                                            ) { Text(s.name, modifier = Modifier.fillMaxWidth()) }
-                                        }
+                        Box {
+                            OutlinedTextField(
+                                value = selectedName,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Space") },
+                                trailingIcon = {
+                                    IconButton(onClick = { expanded = true }) {
+                                        Icon(Icons.Filled.ArrowDropDown, contentDescription = "Choose space")
                                     }
                                 },
-                                confirmButton = {},
-                                dismissButton = {
-                                    TextButton(onClick = { expanded = false }) { Text("Cancel") }
-                                }
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.small,
                             )
+                            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                                spaces.forEach { s ->
+                                    DropdownMenuItem(
+                                        text = { Text(s.name) },
+                                        onClick = {
+                                            selectedSpaceId = s.id
+                                            expanded = false
+                                        },
+                                    )
+                                }
+                            }
                         }
                     }
                     OutlinedTextField(
@@ -220,25 +245,27 @@ fun DotsScreen(
                         onValueChange = { name = it.take(40) },
                         label = { Text("Name") },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.small,
                     )
                     OutlinedTextField(
                         value = instructions,
                         onValueChange = { instructions = it.take(2000) },
                         label = { Text("Role instructions") },
                         modifier = Modifier.fillMaxWidth(),
-                        minLines = 3
+                        minLines = 3,
+                        shape = MaterialTheme.shapes.small,
                     )
                     Row(
                         Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text("Allow research tools", Modifier.weight(1f))
                         Switch(researchAllowed, { researchAllowed = it })
                     }
                     Row(
                         Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text("Allow memory tools", Modifier.weight(1f))
                         Switch(memoryAllowed, { memoryAllowed = it })
@@ -246,7 +273,7 @@ fun DotsScreen(
                     Text(
                         "Tool permissions are explicit and stored with the Dot. They can be changed later.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             },
@@ -258,7 +285,7 @@ fun DotsScreen(
                             val client = ApiClient(TokenStore(context))
                             when (val r = client.createDot(
                                 name.trim(), instructions.trim(), selectedSpaceId,
-                                researchAllowed, memoryAllowed
+                                researchAllowed, memoryAllowed,
                             )) {
                                 is ApiResult.Ok -> {
                                     showCreate = false
@@ -272,14 +299,14 @@ fun DotsScreen(
                         }
                     },
                     enabled = name.trim().isNotEmpty() && instructions.trim().length >= 3 &&
-                        selectedSpaceId.isNotEmpty() && !creating
+                        selectedSpaceId.isNotEmpty() && !creating,
                 ) { Text(if (creating) "Creating…" else "Create") }
             },
             dismissButton = {
                 TextButton(onClick = { showCreate = false }, enabled = !creating) {
                     Text("Cancel")
                 }
-            }
+            },
         )
     }
 }

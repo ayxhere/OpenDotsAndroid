@@ -1,11 +1,15 @@
 package imayx.opendots.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 
 // AMOLED-first dark palette. Pure black background, soft surfaces.
 private val DarkColors = darkColorScheme(
@@ -44,6 +48,34 @@ private val LightColors = lightColorScheme(
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
+/**
+ * Rounded shape system. Cards, dialogs, headers and sheets share these
+ * radii so every screen feels like one app.
+ */
+val OdShapes = Shapes(
+    extraSmall = RoundedCornerShape(10.dp),
+    small = RoundedCornerShape(14.dp),
+    medium = RoundedCornerShape(20.dp),
+    large = RoundedCornerShape(28.dp),
+    extraLarge = RoundedCornerShape(36.dp),
+)
+
+/** Consistent spacing scale used across all screens. */
+object OdSpacing {
+    val xs: Dp = 4.dp
+    val s: Dp = 8.dp
+    val m: Dp = 12.dp
+    val l: Dp = 16.dp
+    val xl: Dp = 24.dp
+    val xxl: Dp = 32.dp
+
+    /** Horizontal padding applied to screen content. */
+    val screen: Dp = 16.dp
+
+    /** Bottom clearance so content never hides behind the floating nav bar. */
+    val navClearance: Dp = 96.dp
+}
+
 @Composable
 fun OpenDotsTheme(
     mode: ThemeMode = ThemeMode.SYSTEM,
@@ -56,6 +88,7 @@ fun OpenDotsTheme(
     }
     MaterialTheme(
         colorScheme = if (dark) DarkColors else LightColors,
+        shapes = OdShapes,
         content = content,
     )
 }

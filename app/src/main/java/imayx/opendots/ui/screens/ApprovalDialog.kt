@@ -40,6 +40,7 @@ import imayx.opendots.api.ApiClient
 import imayx.opendots.api.ApiClient.ApiResult
 import imayx.opendots.auth.TokenStore
 import imayx.opendots.node.NodeManager
+import imayx.opendots.ui.theme.OdSpacing
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 
@@ -126,9 +127,10 @@ fun ApprovalDialog(
 
     AlertDialog(
         onDismissRequest = { if (!processing) onDismiss() },
+        shape = MaterialTheme.shapes.large,
         title = { Text("Approval required") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(OdSpacing.s)) {
                 Text(request.title, style = MaterialTheme.typography.titleMedium)
                 Text(request.description, style = MaterialTheme.typography.bodyMedium)
                 if (request.details.isNotEmpty()) {

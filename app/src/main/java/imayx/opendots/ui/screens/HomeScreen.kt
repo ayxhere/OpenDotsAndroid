@@ -20,8 +20,8 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -41,20 +41,26 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import imayx.opendots.api.ApiClient
-import imayx.opendots.api.ApiState
+import imayx.opendots.api.SetupStatus
 import imayx.opendots.api.WorkspaceResponse
 import imayx.opendots.auth.TokenStore
 import imayx.opendots.node.NodeManager
+import imayx.opendots.ui.components.OdEmpty
+import imayx.opendots.ui.components.OdErrorCard
+import imayx.opendots.ui.components.OdHeader
+import imayx.opendots.ui.components.OdLoading
+import imayx.opendots.ui.components.OdSectionCard
+import imayx.opendots.ui.theme.OdSpacing
 import kotlinx.coroutines.launch
 
 class HomeViewModel : ViewModel() {
     var workspace: WorkspaceResponse? = null
         private set
-    var apiState: ApiState? = null
-        private set
     var loading by mutableStateOf(false)
         private set
     var error: String? by mutableStateOf(null)
+        private set
+    var errorDetails: String? by mutableStateOf(null)
         private set
 
     fun refresh(api: ApiClient) {
@@ -62,15 +68,17 @@ class HomeViewModel : ViewModel() {
         viewModelScope.launch {
             loading = true
             error = null
-            when (val s = api.getState()) {
-                is ApiClient.ApiResult.Ok -> apiState = s.value
-                is ApiClient.ApiResult.HttpError -> error = "Backend error ${s.code}: ${s.message}"
-                is ApiClient.ApiResult.NetworkError -> error = "Cannot reach backend: ${s.message}"
-            }
+            errorDetails = null
             when (val w = api.getWorkspace()) {
                 is ApiClient.ApiResult.Ok -> workspace = w.value
-                is ApiClient.ApiResult.HttpError -> if (error == null) error = "Backend error ${w.code}: ${w.message}"
-                is ApiClient.ApiResult.NetworkError -> if (error == null) error = "Cannot reach backend: ${w.message}"
+                is ApiClient.ApiResult.HttpError -> {
+                    error = "Couldn't load the workspace (HTTP ${w.code})."
+                    errorDetails = w.message
+                }
+                is ApiClient.ApiResult.NetworkError -> {
+                    error = "Cannot reach the backend."
+                    errorDetails = w.message
+                }
             }
             loading = false
         }
@@ -97,13 +105,18 @@ fun HomeScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = OdSpacing.screen),
+        verticalArrangement = Arrangement.spacedBy(OdSpacing.m),
     ) {
-        Text(
-            "Workspace",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
+        Spacer(Modifier.height(OdSpacing.s))
+        OdHeader(
+            title = "Workspace",
+            subtitle = "Local-first AI workspace",
+            actions = {
+                IconButton(onClick = { vm.refresh(api) }) {
+                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
+                }
+            },
         )
 
         BackendStatusCard(
@@ -116,49 +129,38 @@ fun HomeScreen(
         when (backendState) {
             is NodeManager.BackendState.Ready -> {
                 if (vm.loading && vm.workspace == null) {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                            Spacer(Modifier.width(12.dp))
-                            Text("Loading workspace…")
-                        }
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium,
+                    ) {
+                        OdLoading(
+                            text = "Loading workspace…",
+                            modifier = Modifier.fillMaxWidth().padding(OdSpacing.xl),
+                        )
                     }
                 }
                 vm.error?.let {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                    ) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(it, color = MaterialTheme.colorScheme.onErrorContainer)
-                            OutlinedButton(onClick = { vm.refresh(api) }) {
-                                Icon(Icons.Filled.Refresh, contentDescription = null)
-                                Spacer(Modifier.width(8.dp))
-                                Text("Retry")
-                            }
-                        }
-                    }
+                    OdErrorCard(
+                        message = it,
+                        details = vm.errorDetails,
+                        onRetry = { vm.refresh(api) },
+                    )
                 }
                 vm.workspace?.let { ws ->
                     StatsRow(ws)
-                    SetupChecklistCard(state = vm.apiState, onOpenSettings = onOpenSettings)
+                    SetupChecklistCard(setup = ws.setup, onOpenSettings = onOpenSettings)
                     RecentDotsCard(ws)
                 }
             }
             else -> {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        "Workspace data appears once the backend is running.",
-                        modifier = Modifier.padding(16.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                OdEmpty(
+                    title = "Backend not running",
+                    body = "Workspace data appears once the backend is running.",
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
-        Spacer(Modifier.height(72.dp)) // bottom nav clearance
+        Spacer(Modifier.height(OdSpacing.navClearance))
     }
 }
 
@@ -169,41 +171,39 @@ private fun BackendStatusCard(
     onRestartApp: () -> Unit,
     onViewLogs: () -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                val (icon, tint, label) = when (state) {
-                    is NodeManager.BackendState.Ready ->
-                        Triple(Icons.Filled.CheckCircle, MaterialTheme.colorScheme.primary, "Backend running")
-                    is NodeManager.BackendState.Failed ->
-                        Triple(Icons.Filled.Error, MaterialTheme.colorScheme.error, "Backend failed")
-                    is NodeManager.BackendState.Crashed ->
-                        Triple(Icons.Filled.Error, MaterialTheme.colorScheme.error, "Backend crashed")
-                    else ->
-                        Triple(Icons.Filled.Warning, MaterialTheme.colorScheme.secondary, backendLabel(state))
-                }
-                Icon(icon, contentDescription = null, tint = tint)
-                Spacer(Modifier.width(8.dp))
-                Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+    OdSectionCard(title = "Backend") {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val (icon, tint, label) = when (state) {
+                is NodeManager.BackendState.Ready ->
+                    Triple(Icons.Filled.CheckCircle, MaterialTheme.colorScheme.primary, "Backend running")
+                is NodeManager.BackendState.Failed ->
+                    Triple(Icons.Filled.Error, MaterialTheme.colorScheme.error, "Backend failed")
+                is NodeManager.BackendState.Crashed ->
+                    Triple(Icons.Filled.Error, MaterialTheme.colorScheme.error, "Backend crashed")
+                else ->
+                    Triple(Icons.Filled.Warning, MaterialTheme.colorScheme.secondary, backendLabel(state))
             }
-            Text(
-                backendDetail(state),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                when (state) {
-                    is NodeManager.BackendState.Failed -> {
-                        Button(onClick = onStart) { Text("Retry") }
-                        OutlinedButton(onClick = onViewLogs) { Text("View logs") }
-                    }
-                    is NodeManager.BackendState.Crashed -> {
-                        Button(onClick = onRestartApp) { Text("Restart app") }
-                        OutlinedButton(onClick = onViewLogs) { Text("View logs") }
-                    }
-                    else -> {
-                        OutlinedButton(onClick = onViewLogs) { Text("Runtime logs") }
-                    }
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.width(OdSpacing.s))
+            Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        }
+        Text(
+            backendDetail(state),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(OdSpacing.s)) {
+            when (state) {
+                is NodeManager.BackendState.Failed -> {
+                    Button(onClick = onStart) { Text("Retry") }
+                    OutlinedButton(onClick = onViewLogs) { Text("View logs") }
+                }
+                is NodeManager.BackendState.Crashed -> {
+                    Button(onClick = onRestartApp) { Text("Restart app") }
+                    OutlinedButton(onClick = onViewLogs) { Text("View logs") }
+                }
+                else -> {
+                    OutlinedButton(onClick = onViewLogs) { Text("Runtime logs") }
                 }
             }
         }
@@ -232,7 +232,7 @@ private fun backendDetail(state: NodeManager.BackendState): String = when (state
 private fun StatsRow(ws: WorkspaceResponse) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(OdSpacing.m),
     ) {
         StatCard("Spaces", ws.spaces.size.toString(), Modifier.weight(1f))
         StatCard("Dots", ws.dots.size.toString(), Modifier.weight(1f))
@@ -242,8 +242,14 @@ private fun StatsRow(ws: WorkspaceResponse) {
 
 @Composable
 private fun StatCard(label: String, value: String, modifier: Modifier = Modifier) {
-    Card(modifier = modifier) {
-        Column(Modifier.padding(16.dp)) {
+    Card(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        ),
+    ) {
+        Column(Modifier.padding(OdSpacing.l)) {
             Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -251,26 +257,22 @@ private fun StatCard(label: String, value: String, modifier: Modifier = Modifier
 }
 
 @Composable
-private fun SetupChecklistCard(state: ApiState?, onOpenSettings: () -> Unit) {
-    val setup = state?.configured
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("AI setup", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            if (setup == null) {
-                Text("Checking configuration…", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            } else if (setup.missing.isEmpty()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.width(8.dp))
-                    Text("AI services are configured.")
-                }
-            } else {
-                Text(
-                    "To use AI conversations, configure: ${setup.missing.joinToString(", ")}.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                OutlinedButton(onClick = onOpenSettings) { Text("Open setup") }
+private fun SetupChecklistCard(setup: SetupStatus?, onOpenSettings: () -> Unit) {
+    OdSectionCard(title = "AI setup") {
+        if (setup == null) {
+            Text("Checking configuration…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else if (setup.missing.isEmpty()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(OdSpacing.s))
+                Text("AI services are configured.")
             }
+        } else {
+            Text(
+                "To use AI conversations, configure: ${setup.missing.joinToString(", ")}.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedButton(onClick = onOpenSettings) { Text("Open setup") }
         }
     }
 }
@@ -278,20 +280,17 @@ private fun SetupChecklistCard(state: ApiState?, onOpenSettings: () -> Unit) {
 @Composable
 private fun RecentDotsCard(ws: WorkspaceResponse) {
     if (ws.dots.isEmpty()) return
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Dots", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            ws.dots.take(5).forEach { dot ->
-                Column {
-                    Text(dot.name, fontWeight = FontWeight.Medium)
-                    if (dot.instructions.isNotBlank()) {
-                        Text(
-                            dot.instructions.take(120),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 2,
-                        )
-                    }
+    OdSectionCard(title = "Dots") {
+        ws.dots.take(5).forEach { dot ->
+            Column {
+                Text(dot.name, fontWeight = FontWeight.Medium)
+                if (dot.instructions.isNotBlank()) {
+                    Text(
+                        dot.instructions.take(120),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                    )
                 }
             }
         }

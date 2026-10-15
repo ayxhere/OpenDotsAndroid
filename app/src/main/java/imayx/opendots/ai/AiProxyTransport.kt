@@ -203,7 +203,7 @@ class AiProxyTransport(
     /** Non-streaming probe used by "Test connection". Never fabricates success. */
     suspend fun testConnection(
         type: AiProviderType,
-        baseUrl: String?,
+        upstreamBaseUrl: String?,
         apiKey: String,
         model: String,
     ): TestResult = suspendCancellableCoroutine { cont ->
@@ -218,7 +218,7 @@ class AiProxyTransport(
                     AiProviderType.OPENROUTER -> "openrouter"
                     AiProviderType.CUSTOM -> "custom"
                 },
-                baseUrl = baseUrl?.takeIf { it.isNotBlank() },
+                baseUrl = upstreamBaseUrl?.takeIf { it.isNotBlank() },
                 apiKey = apiKey,
                 model = model,
                 messages = emptyList(),
@@ -227,7 +227,7 @@ class AiProxyTransport(
         ).toRequestBody("application/json".toMediaType())
 
         val request = Request.Builder()
-            .url("$baseUrl/ai/test")
+            .url("${this@AiProxyTransport.baseUrl}/ai/test")
             .header("Authorization", "Bearer ${tokenStore.getOrCreateOwnerToken()}")
             .header("Content-Type", "application/json")
             .post(body)
@@ -282,7 +282,7 @@ class AiProxyTransport(
     /** Fetches the provider's model list through the proxy (key in body). */
     suspend fun fetchModels(
         type: AiProviderType,
-        baseUrl: String?,
+        upstreamBaseUrl: String?,
         apiKey: String,
     ): Result<List<String>> = suspendCancellableCoroutine { cont ->
         val payload = json.encodeToString(
@@ -296,13 +296,13 @@ class AiProxyTransport(
                     AiProviderType.OPENROUTER -> "openrouter"
                     AiProviderType.CUSTOM -> "custom"
                 },
-                baseUrl = baseUrl?.takeIf { it.isNotBlank() },
+                baseUrl = upstreamBaseUrl?.takeIf { it.isNotBlank() },
                 apiKey = apiKey,
             ),
         ).toRequestBody("application/json".toMediaType())
 
         val request = Request.Builder()
-            .url("$baseUrl/ai/models")
+            .url("${this@AiProxyTransport.baseUrl}/ai/models")
             .header("Authorization", "Bearer ${tokenStore.getOrCreateOwnerToken()}")
             .header("Content-Type", "application/json")
             .post(payload)

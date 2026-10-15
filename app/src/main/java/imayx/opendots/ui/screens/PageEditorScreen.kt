@@ -3,12 +3,10 @@ package imayx.opendots.ui.screens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
@@ -24,7 +22,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -35,13 +32,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import imayx.opendots.api.ApiClient
 import imayx.opendots.api.ApiClient.ApiResult
 import imayx.opendots.api.Page
 import imayx.opendots.auth.TokenStore
 import imayx.opendots.node.NodeManager
+import imayx.opendots.ui.components.OdErrorCard
+import imayx.opendots.ui.components.OdHeader
+import imayx.opendots.ui.components.OdLoading
+import imayx.opendots.ui.theme.OdSpacing
 import kotlinx.coroutines.launch
 
 /**
@@ -104,7 +104,7 @@ fun PageEditorScreen(
                     conflictMessage = null
                     snackbar.showSnackbar("Saved (revision ${r.value.revision})")
                 }
-                is ApiResult.HttpError -> {
+                is ApiClient.ApiResult.HttpError -> {
                     if (r.code == 409) {
                         conflictMessage =
                             "This page changed elsewhere (your revision ${page.revision} is stale). " +
@@ -121,19 +121,11 @@ fun PageEditorScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        if (title.isBlank()) "Untitled" else title,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
+            OdHeader(
+                title = if (title.isBlank()) "Untitled" else title,
+                subtitle = "Revision ${page.revision}${if (dirty) " · unsaved changes" else ""}",
+                onBack = onBack,
+                modifier = Modifier.padding(horizontal = OdSpacing.screen).padding(top = OdSpacing.s),
                 actions = {
                     IconButton(onClick = { refresh() }, enabled = !saving) {
                         Icon(Icons.Filled.Refresh, contentDescription = "Reload")
@@ -143,41 +135,43 @@ fun PageEditorScreen(
                     }
                     IconButton(
                         onClick = { save() },
-                        enabled = dirty && !saving
+                        enabled = dirty && !saving,
                     ) {
                         if (saving) {
                             CircularProgressIndicator(
                                 modifier = Modifier.padding(8.dp),
-                                strokeWidth = 2.dp
+                                strokeWidth = 2.dp,
                             )
                         } else {
                             Icon(
                                 Icons.Filled.Check,
                                 contentDescription = "Save",
                                 tint = if (dirty) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.onSurfaceVariant
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
-                }
+                },
             )
         },
         snackbarHost = { SnackbarHost(snackbar) }
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             if (loading) {
-                CircularProgressIndicator(Modifier.align(Alignment.Center))
+                OdLoading(
+                    text = "Loading page…",
+                    modifier = Modifier.align(Alignment.Center),
+                )
             } else {
                 Column(
-                    Modifier.fillMaxSize().padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    Modifier.fillMaxSize().padding(OdSpacing.screen),
+                    verticalArrangement = Arrangement.spacedBy(OdSpacing.m),
                 ) {
                     if (conflictMessage != null) {
-                        Text(
-                            conflictMessage!!,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.fillMaxWidth()
+                        OdErrorCard(
+                            message = "This page changed elsewhere — your revision is stale.",
+                            details = conflictMessage,
+                            onRetry = { refresh() },
                         )
                     }
                     OutlinedTextField(
@@ -186,19 +180,16 @@ fun PageEditorScreen(
                         label = { Text("Title") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = !saving
-                    )
-                    Text(
-                        "Revision ${page.revision}${if (dirty) " · unsaved changes" else ""}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        enabled = !saving,
+                        shape = MaterialTheme.shapes.small,
                     )
                     OutlinedTextField(
                         value = content,
                         onValueChange = { content = it; dirty = true },
                         label = { Text("Content") },
                         modifier = Modifier.fillMaxSize(),
-                        enabled = !saving
+                        enabled = !saving,
+                        shape = MaterialTheme.shapes.small,
                     )
                 }
             }
@@ -209,6 +200,7 @@ fun PageEditorScreen(
         var deleting by remember { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = { if (!deleting) showDelete = false },
+            shape = MaterialTheme.shapes.large,
             title = { Text("Delete page?") },
             text = { Text("“${page.title}” will be permanently deleted. This cannot be undone.") },
             confirmButton = {
@@ -231,14 +223,14 @@ fun PageEditorScreen(
                             deleting = false
                         }
                     },
-                    enabled = !deleting
+                    enabled = !deleting,
                 ) { Text("Delete", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
                 TextButton(onClick = { showDelete = false }, enabled = !deleting) {
                     Text("Cancel")
                 }
-            }
+            },
         )
     }
 }

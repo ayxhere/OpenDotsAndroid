@@ -1,7 +1,6 @@
 package imayx.opendots.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,7 +13,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.AssistChip
@@ -29,7 +27,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -42,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import imayx.opendots.ai.AiGroup
 import imayx.opendots.ai.AiGroupStore
@@ -55,14 +53,12 @@ import imayx.opendots.ai.GroupMode
 import imayx.opendots.ai.GroupRunEvent
 import imayx.opendots.ai.RunEndReason
 import imayx.opendots.auth.TokenStore
+import imayx.opendots.ui.components.OdHeader
+import imayx.opendots.ui.components.formatInstant
+import imayx.opendots.ui.theme.OdSpacing
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-
-private val timeFmt = SimpleDateFormat("HH:mm", Locale.getDefault())
 
 /**
  * Group conversation: the human chats with several AI agents in one thread.
@@ -192,33 +188,22 @@ fun GroupChatScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(group.name)
-                        Text(
-                            "${group.participants.size} agents · ${group.mode.displayName} · turn $turnCount/${group.maxTurns}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
+            OdHeader(
+                title = group.name,
+                subtitle = "${group.participants.size} agents · ${group.mode.displayName} · turn $turnCount/${group.maxTurns}",
+                onBack = onBack,
+                modifier = Modifier.padding(horizontal = OdSpacing.screen).padding(top = OdSpacing.s),
                 actions = {
                     if (costTracker.spentUsd > 0) {
                         AssistChip(
                             onClick = {},
-                            label = { Text("$${"%.4f".format(costTracker.spentUsd)}") }
+                            label = { Text("$${"%.4f".format(costTracker.spentUsd)}") },
                         )
                     }
-                }
+                },
             )
         },
-        snackbarHost = { SnackbarHost(snackbar) }
+        snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             if (group.mode == GroupMode.MENTION) {
@@ -226,14 +211,14 @@ fun GroupChatScreen(
                     "Tip: @mention an agent by name to get a reply.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    modifier = Modifier.padding(horizontal = OdSpacing.screen, vertical = 4.dp),
                 )
             }
             LazyColumn(
                 state = listState,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
-                contentPadding = PaddingValues(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                contentPadding = PaddingValues(OdSpacing.m),
+                verticalArrangement = Arrangement.spacedBy(OdSpacing.s),
             ) {
                 items(history, key = { it.id }) { msg ->
                     GroupMessageCard(msg)
@@ -242,15 +227,16 @@ fun GroupChatScreen(
                 items(liveDeltas, key = { it.first }) { (author, text) ->
                     Card(
                         modifier = Modifier.fillMaxWidth(0.95f),
+                        shape = MaterialTheme.shapes.medium,
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        ),
                     ) {
-                        Column(Modifier.padding(12.dp)) {
+                        Column(Modifier.padding(OdSpacing.m)) {
                             Text(
                                 "$author · typing…",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             Text(text, style = MaterialTheme.typography.bodyMedium)
                         }
@@ -262,7 +248,7 @@ fun GroupChatScreen(
                             typingAgents.joinToString { "$it is thinking…" },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(4.dp)
+                            modifier = Modifier.padding(4.dp),
                         )
                     }
                 }
@@ -273,13 +259,13 @@ fun GroupChatScreen(
                     it,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    modifier = Modifier.padding(horizontal = OdSpacing.screen, vertical = 4.dp),
                 )
             }
 
             Row(
-                Modifier.fillMaxWidth().padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                Modifier.fillMaxWidth().padding(OdSpacing.m),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 OutlinedTextField(
                     value = input,
@@ -287,9 +273,10 @@ fun GroupChatScreen(
                     placeholder = { Text("Message the group…") },
                     modifier = Modifier.weight(1f),
                     enabled = !running,
-                    maxLines = 4
+                    maxLines = 4,
+                    shape = MaterialTheme.shapes.medium,
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(OdSpacing.s))
                 if (running) {
                     IconButton(onClick = { stop() }) {
                         Icon(Icons.Filled.Close, contentDescription = "Stop")
@@ -297,7 +284,7 @@ fun GroupChatScreen(
                 } else {
                     IconButton(
                         onClick = { send() },
-                        enabled = input.trim().isNotEmpty()
+                        enabled = input.trim().isNotEmpty(),
                     ) {
                         Icon(Icons.Filled.Send, contentDescription = "Send")
                     }
@@ -312,39 +299,47 @@ private fun GroupMessageCard(msg: GroupChatMessage) {
     val isHuman = msg.author == "human" || msg.author == "Human"
     Row(
         Modifier.fillMaxWidth(),
-        horizontalArrangement = if (isHuman) Arrangement.End else Arrangement.Start
+        horizontalArrangement = if (isHuman) Arrangement.End else Arrangement.Start,
     ) {
         Card(
             modifier = Modifier.fillMaxWidth(if (isHuman) 0.85f else 0.95f),
+            shape = MaterialTheme.shapes.medium,
             colors = CardDefaults.cardColors(
                 containerColor = if (isHuman)
                     MaterialTheme.colorScheme.primaryContainer
                 else
-                    MaterialTheme.colorScheme.surfaceVariant
-            )
+                    MaterialTheme.colorScheme.surfaceContainer,
+            ),
         ) {
-            Column(Modifier.padding(12.dp)) {
+            Column(Modifier.padding(OdSpacing.m)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         if (isHuman) "You" else msg.author,
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
-                    Text(
-                        timeFmt.format(Date(msg.timestampMs)),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    val ts = formatInstant(msg.timestampMs)
+                    if (ts.isNotEmpty()) {
+                        Text(
+                            ts,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
                 if (!isHuman && (msg.providerName != null || msg.model != null)) {
                     Text(
                         listOfNotNull(
                             msg.providerName, msg.model,
-                            if (msg.fallbackOccurred) "fallback" else null
+                            if (msg.fallbackOccurred) "fallback" else null,
                         ).joinToString(" · "),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.tertiary
+                        color = MaterialTheme.colorScheme.tertiary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Spacer(Modifier.width(4.dp))
                 }

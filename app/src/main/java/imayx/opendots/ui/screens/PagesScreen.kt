@@ -14,13 +14,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -32,7 +31,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -44,13 +42,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import imayx.opendots.api.ApiClient
 import imayx.opendots.api.ApiClient.ApiResult
 import imayx.opendots.api.Page
 import imayx.opendots.api.Space
 import imayx.opendots.auth.TokenStore
 import imayx.opendots.node.NodeManager
+import imayx.opendots.ui.components.OdEmpty
+import imayx.opendots.ui.components.OdHeader
+import imayx.opendots.ui.components.OdLoading
+import imayx.opendots.ui.components.formatInstant
+import imayx.opendots.ui.theme.OdSpacing
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -86,18 +88,16 @@ fun PagesScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(space.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
+            OdHeader(
+                title = space.name,
+                subtitle = if (pages.isNotEmpty()) "${pages.size} pages" else "Pages",
+                onBack = onBack,
+                modifier = Modifier.padding(horizontal = OdSpacing.screen).padding(top = OdSpacing.s),
                 actions = {
                     IconButton(onClick = { refresh() }) {
                         Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
                     }
-                }
+                },
             )
         },
         floatingActionButton = {
@@ -109,36 +109,62 @@ fun PagesScreen(
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
-                loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                pages.isEmpty() -> Text(
-                    "No pages in this space yet.",
-                    Modifier.align(Alignment.Center).padding(32.dp),
-                    style = MaterialTheme.typography.bodyLarge
+                loading -> OdLoading(
+                    text = "Loading pages…",
+                    modifier = Modifier.align(Alignment.Center),
+                )
+                pages.isEmpty() -> OdEmpty(
+                    title = "No pages yet",
+                    body = "No pages in this space yet.",
+                    icon = Icons.Filled.Description,
+                    actionLabel = "New page",
+                    onAction = { showCreate = true },
+                    modifier = Modifier.align(Alignment.Center).fillMaxWidth(),
                 )
                 else -> LazyColumn(
-                    contentPadding = PaddingValues(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    contentPadding = PaddingValues(
+                        start = OdSpacing.screen,
+                        end = OdSpacing.screen,
+                        top = OdSpacing.m,
+                        bottom = OdSpacing.m,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(OdSpacing.s),
                 ) {
                     items(pages, key = { it.id }) { page ->
                         Card(
-                            Modifier.fillMaxWidth().clickable { onOpenPage(page) }
+                            modifier = Modifier.fillMaxWidth().clickable { onOpenPage(page) },
+                            shape = MaterialTheme.shapes.medium,
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                            ),
                         ) {
                             Row(
-                                Modifier.fillMaxWidth().padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                Modifier.fillMaxWidth().padding(OdSpacing.l),
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Icon(
                                     Icons.Filled.Description,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
+                                    tint = MaterialTheme.colorScheme.primary,
                                 )
-                                Spacer(Modifier.padding(6.dp))
+                                Spacer(Modifier.padding(OdSpacing.s))
                                 Column(Modifier.weight(1f)) {
-                                    Text(page.title, style = MaterialTheme.typography.titleMedium)
                                     Text(
-                                        "Revision ${page.revision}",
+                                        page.title,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        buildString {
+                                            append("Revision ${page.revision}")
+                                            val updated = formatInstant(page.updatedAt)
+                                            if (updated.isNotEmpty()) append(" · $updated")
+                                        },
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
                                     )
                                 }
                             }
@@ -154,6 +180,7 @@ fun PagesScreen(
         var creating by remember { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = { if (!creating) showCreate = false },
+            shape = MaterialTheme.shapes.large,
             title = { Text("New page") },
             text = {
                 OutlinedTextField(
@@ -161,7 +188,8 @@ fun PagesScreen(
                     onValueChange = { title = it },
                     label = { Text("Title") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.small,
                 )
             },
             confirmButton = {
@@ -181,14 +209,14 @@ fun PagesScreen(
                             creating = false
                         }
                     },
-                    enabled = title.trim().isNotEmpty() && !creating
+                    enabled = title.trim().isNotEmpty() && !creating,
                 ) { Text(if (creating) "Creating…" else "Create") }
             },
             dismissButton = {
                 TextButton(onClick = { showCreate = false }, enabled = !creating) {
                     Text("Cancel")
                 }
-            }
+            },
         )
     }
 }

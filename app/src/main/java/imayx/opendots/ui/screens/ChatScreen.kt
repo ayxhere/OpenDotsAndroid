@@ -14,8 +14,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -28,7 +28,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -41,11 +40,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import imayx.opendots.api.ApiClient
 import imayx.opendots.api.Dot
 import imayx.opendots.auth.TokenStore
 import imayx.opendots.chat.ChatClient
 import imayx.opendots.node.NodeManager
+import imayx.opendots.ui.components.ExpandableErrorText
+import imayx.opendots.ui.components.OdErrorCard
+import imayx.opendots.ui.components.OdHeader
+import imayx.opendots.ui.theme.OdSpacing
 import kotlinx.coroutines.launch
 
 private data class ChatMessage(
@@ -104,13 +106,13 @@ fun ChatScreen(
         val userMsg = ChatMessage(
             id = "u-${System.currentTimeMillis()}",
             role = "user",
-            text = text
+            text = text,
         )
         val assistantMsg = ChatMessage(
             id = "a-${System.currentTimeMillis()}",
             role = "assistant",
             text = "",
-            streaming = true
+            streaming = true,
         )
         messages.add(userMsg)
         messages.add(assistantMsg)
@@ -133,7 +135,7 @@ fun ChatScreen(
                     is ChatClient.ChatEvent.RunError -> {
                         messages[assistantIndex] = assistantMsg.copy(
                             text = responseBuffer.toString().ifEmpty { "Error: ${event.message}" },
-                            streaming = false
+                            streaming = false,
                         )
                     }
                     is ChatClient.ChatEvent.Started -> { /* no-op */ }
@@ -143,7 +145,7 @@ fun ChatScreen(
                 if (responseBuffer.isEmpty()) {
                     messages[assistantIndex] = assistantMsg.copy(
                         text = error,
-                        streaming = false
+                        streaming = false,
                     )
                 }
                 if (error.contains("INTELLIGENCE_API_KEY", ignoreCase = true)) {
@@ -158,29 +160,30 @@ fun ChatScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(dot.name) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
+            OdHeader(
+                title = dot.name,
+                subtitle = "CopilotKit Intelligence",
+                onBack = onBack,
+                modifier = Modifier.padding(horizontal = OdSpacing.screen).padding(top = OdSpacing.s),
             )
         },
         snackbarHost = { SnackbarHost(snackbar) }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             if (setupError != null && threadId == null) {
-                Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+                Box(
+                    Modifier.fillMaxSize().padding(OdSpacing.xxl),
+                    contentAlignment = Alignment.Center,
+                ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(OdSpacing.m),
                     ) {
-                        Text(
-                            setupError!!,
-                            style = MaterialTheme.typography.bodyLarge
+                        OdErrorCard(
+                            message = "Could not start a conversation.",
+                            details = setupError,
                         )
-                        androidx.compose.material3.Button(onClick = onOpenSettings) {
+                        Button(onClick = onOpenSettings) {
                             Text("Open Settings")
                         }
                     }
@@ -189,35 +192,42 @@ fun ChatScreen(
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
-                    contentPadding = PaddingValues(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    contentPadding = PaddingValues(OdSpacing.m),
+                    verticalArrangement = Arrangement.spacedBy(OdSpacing.s),
                 ) {
                     items(messages, key = { it.id }) { msg ->
                         val isUser = msg.role == "user"
+                        val isError = msg.text.startsWith("Error:") && !msg.streaming
                         Row(
                             Modifier.fillMaxWidth(),
-                            horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
+                            horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
                         ) {
                             Card(
                                 modifier = Modifier.fillMaxWidth(if (isUser) 0.85f else 0.92f),
+                                shape = MaterialTheme.shapes.medium,
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (isUser)
-                                        MaterialTheme.colorScheme.primaryContainer
-                                    else
-                                        MaterialTheme.colorScheme.surfaceVariant
-                                )
+                                    containerColor = when {
+                                        isError -> MaterialTheme.colorScheme.errorContainer
+                                        isUser -> MaterialTheme.colorScheme.primaryContainer
+                                        else -> MaterialTheme.colorScheme.surfaceContainer
+                                    },
+                                ),
                             ) {
-                                Column(Modifier.padding(12.dp)) {
-                                    Text(
-                                        msg.text.ifEmpty { if (msg.streaming) "…" else "" },
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                    if (msg.streaming && msg.text.isNotEmpty()) {
+                                Column(Modifier.padding(OdSpacing.m)) {
+                                    if (isError) {
+                                        ExpandableErrorText(msg.text)
+                                    } else {
                                         Text(
-                                            "…",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            msg.text.ifEmpty { if (msg.streaming) "…" else "" },
+                                            style = MaterialTheme.typography.bodyMedium,
                                         )
+                                        if (msg.streaming && msg.text.isNotEmpty()) {
+                                            Text(
+                                                "…",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -225,7 +235,10 @@ fun ChatScreen(
                     }
                     if (threadId == null) {
                         item {
-                            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                            Box(
+                                Modifier.fillMaxWidth().padding(OdSpacing.l),
+                                contentAlignment = Alignment.Center,
+                            ) {
                                 CircularProgressIndicator()
                             }
                         }
@@ -233,8 +246,8 @@ fun ChatScreen(
                 }
 
                 Row(
-                    Modifier.fillMaxWidth().padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    Modifier.fillMaxWidth().padding(OdSpacing.m),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     OutlinedTextField(
                         value = input,
@@ -242,17 +255,18 @@ fun ChatScreen(
                         placeholder = { Text("Message ${dot.name}…") },
                         modifier = Modifier.weight(1f),
                         enabled = !sending && threadId != null,
-                        maxLines = 4
+                        maxLines = 4,
+                        shape = MaterialTheme.shapes.medium,
                     )
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(OdSpacing.s))
                     IconButton(
                         onClick = { send() },
-                        enabled = input.trim().isNotEmpty() && !sending && threadId != null
+                        enabled = input.trim().isNotEmpty() && !sending && threadId != null,
                     ) {
                         if (sending) {
                             CircularProgressIndicator(
                                 modifier = Modifier.padding(8.dp),
-                                strokeWidth = 2.dp
+                                strokeWidth = 2.dp,
                             )
                         } else {
                             Icon(Icons.Filled.Send, contentDescription = "Send")

@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">OpenDots</string>
     <!-- Base theme; the real theming is done in Compose (Material3, AMOLED dark). -->
     <style name="Theme.OpenDots" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@android:color/black</item>

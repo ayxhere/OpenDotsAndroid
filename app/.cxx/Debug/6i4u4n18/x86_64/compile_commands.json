@@ -1,7 +1,0 @@
-[
-{
-  "directory": "/home/hatch/workspace/opendots-android/app/.cxx/Debug/6i4u4n18/x86_64",
-  "command": "/home/hatch/ndk-dl/android-ndk-r26d/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=x86_64-none-linux-android24 --sysroot=/home/hatch/ndk-dl/android-ndk-r26d/toolchains/llvm/prebuilt/linux-x86_64/sysroot -Dodnode_EXPORTS -I/home/hatch/workspace/opendots-android/app/src/main/cpp/../../../../thirdparty/nodejs-mobile/include -I/home/hatch/workspace/opendots-android/app/src/main/cpp/../../../../thirdparty/nodejs-mobile/include/node -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++20 -fno-limit-debug-info  -fPIC -o CMakeFiles/odnode.dir/node_bridge.cpp.o -c /home/hatch/workspace/opendots-android/app/src/main/cpp/node_bridge.cpp",
-  "file": "/home/hatch/workspace/opendots-android/app/src/main/cpp/node_bridge.cpp"
-}
-]

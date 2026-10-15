@@ -24,7 +24,6 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -64,6 +63,9 @@ import imayx.opendots.ai.AiProxyTransport
 import imayx.opendots.ai.AiRouter
 import imayx.opendots.ai.AiRouterSettingsStore
 import imayx.opendots.auth.TokenStore
+import imayx.opendots.ui.components.ExpandableErrorText
+import imayx.opendots.ui.components.OdEmpty
+import imayx.opendots.ui.theme.OdSpacing
 import imayx.opendots.voice.VoiceEngine
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -114,12 +116,12 @@ fun AiChatScreen() {
     var micPermissionGranted by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
-                PackageManager.PERMISSION_GRANTED
+                PackageManager.PERMISSION_GRANTED,
         )
     }
 
     val micPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
+        ActivityResultContracts.RequestPermission(),
     ) { granted -> micPermissionGranted = granted }
 
     DisposableEffect(Unit) {
@@ -163,11 +165,11 @@ fun AiChatScreen() {
             AiMessage("user", text)
 
         val userMsg = UiChatMessage(
-            id = "u-${System.currentTimeMillis()}", role = "user", text = text
+            id = "u-${System.currentTimeMillis()}", role = "user", text = text,
         )
         val assistantMsg = UiChatMessage(
             id = "a-${System.currentTimeMillis()}", role = "assistant",
-            text = "", streaming = true
+            text = "", streaming = true,
         )
         messages.add(userMsg)
         messages.add(assistantMsg)
@@ -230,13 +232,13 @@ fun AiChatScreen() {
     }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbar) }
+        snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             // Provider picker row
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                Modifier.fillMaxWidth().padding(horizontal = OdSpacing.m, vertical = OdSpacing.s),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box {
                     TextButton(onClick = { providerMenu = true }) {
@@ -248,12 +250,12 @@ fun AiChatScreen() {
                     DropdownMenu(expanded = providerMenu, onDismissRequest = { providerMenu = false }) {
                         DropdownMenuItem(
                             text = { Text("Auto (failover)") },
-                            onClick = { selectedProviderId = null; providerMenu = false }
+                            onClick = { selectedProviderId = null; providerMenu = false },
                         )
                         providers.filter { it.enabled }.forEach { p ->
                             DropdownMenuItem(
                                 text = { Text("${p.name} · ${p.model}") },
-                                onClick = { selectedProviderId = p.id; providerMenu = false }
+                                onClick = { selectedProviderId = p.id; providerMenu = false },
                             )
                         }
                     }
@@ -271,50 +273,42 @@ fun AiChatScreen() {
                         Icons.Filled.VolumeUp,
                         contentDescription = "Read answers aloud",
                         tint = if (voiceEnabled) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurfaceVariant
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
 
             if (providers.isEmpty()) {
-                Box(Modifier.weight(1f).fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "No AI providers configured.",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            "Add providers in Settings → AI Providers → Manage.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                OdEmpty(
+                    title = "No AI providers configured",
+                    body = "Add providers in Settings → AI Providers → Manage.",
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                )
             } else {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
-                    contentPadding = PaddingValues(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    contentPadding = PaddingValues(OdSpacing.m),
+                    verticalArrangement = Arrangement.spacedBy(OdSpacing.s),
                 ) {
                     items(messages, key = { it.id }) { msg ->
                         val isUser = msg.role == "user"
                         Row(
                             Modifier.fillMaxWidth(),
-                            horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
+                            horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
                         ) {
                             Card(
                                 modifier = Modifier.fillMaxWidth(if (isUser) 0.85f else 0.95f),
+                                shape = MaterialTheme.shapes.medium,
                                 colors = CardDefaults.cardColors(
                                     containerColor = when {
                                         msg.error != null -> MaterialTheme.colorScheme.errorContainer
                                         isUser -> MaterialTheme.colorScheme.primaryContainer
-                                        else -> MaterialTheme.colorScheme.surfaceVariant
-                                    }
-                                )
+                                        else -> MaterialTheme.colorScheme.surfaceContainer
+                                    },
+                                ),
                             ) {
-                                Column(Modifier.padding(12.dp)) {
+                                Column(Modifier.padding(OdSpacing.m)) {
                                     if (msg.answer != null) {
                                         Text(
                                             buildString {
@@ -323,13 +317,13 @@ fun AiChatScreen() {
                                                 if (msg.answer.fallbackOccurred) append(" · fallback")
                                             },
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                         Spacer(Modifier.width(4.dp))
                                     }
                                     when {
                                         msg.error != null ->
-                                            Text(msg.error, style = MaterialTheme.typography.bodyMedium)
+                                            ExpandableErrorText(msg.error)
                                         msg.text.isEmpty() && msg.streaming ->
                                             CircularProgressIndicator(modifier = Modifier.padding(4.dp))
                                         else -> Text(msg.text, style = MaterialTheme.typography.bodyMedium)
@@ -345,16 +339,16 @@ fun AiChatScreen() {
             if (listeningText.isNotEmpty()) {
                 Text(
                     "🎤 $listeningText",
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    modifier = Modifier.padding(horizontal = OdSpacing.screen, vertical = 4.dp),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.primary,
                 )
             }
 
             // Input row
             Row(
-                Modifier.fillMaxWidth().padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                Modifier.fillMaxWidth().padding(OdSpacing.m),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(
                     onClick = {
@@ -363,7 +357,7 @@ fun AiChatScreen() {
                         } else {
                             voice.startListening()
                         }
-                    }
+                    },
                 ) {
                     Icon(Icons.Filled.Mic, contentDescription = "Voice input")
                 }
@@ -373,9 +367,10 @@ fun AiChatScreen() {
                     placeholder = { Text("Ask anything…") },
                     modifier = Modifier.weight(1f),
                     enabled = !running,
-                    maxLines = 4
+                    maxLines = 4,
+                    shape = MaterialTheme.shapes.medium,
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(OdSpacing.s))
                 if (running) {
                     IconButton(onClick = { cancelRun() }) {
                         Icon(Icons.Filled.Close, contentDescription = "Cancel")
@@ -383,15 +378,15 @@ fun AiChatScreen() {
                 } else {
                     IconButton(
                         onClick = { send() },
-                        enabled = input.trim().isNotEmpty() && providers.isNotEmpty()
+                        enabled = input.trim().isNotEmpty() && providers.isNotEmpty(),
                     ) {
                         Icon(Icons.Filled.Send, contentDescription = "Send")
                     }
                 }
             }
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Modifier.fillMaxWidth().padding(horizontal = OdSpacing.screen),
+                horizontalArrangement = Arrangement.spacedBy(OdSpacing.s),
             ) {
                 TextButton(onClick = { voice.replayLast() }) {
                     Icon(Icons.Filled.Refresh, contentDescription = null)

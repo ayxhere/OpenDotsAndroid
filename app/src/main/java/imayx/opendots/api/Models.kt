@@ -19,14 +19,19 @@ data class SetupStatus(
     val model: Boolean = false,
     val browser: Boolean = false,
     val voice: Boolean = false,
-    val slack: Boolean = false,
+    // Upstream contract (src/shared/types.ts): slack is a status string such as
+    // "not_configured" | "setup_required" | "activation_failed" | "online".
+    val slack: String = "",
     val missing: List<String> = emptyList(),
 )
 
 @Serializable
 data class ApiState(
     val mode: String? = null,
-    val configured: SetupStatus = SetupStatus(),
+    // Upstream contract (State.configured: boolean, src/shared/types.ts and
+    // configured() in src/server/research.ts): /api/state returns a boolean.
+    // The rich setup object lives at GET /api/workspace -> WorkspaceResponse.setup.
+    val configured: Boolean = false,
 )
 
 @Serializable
@@ -34,7 +39,8 @@ data class Space(
     val id: String,
     val name: String,
     val description: String? = null,
-    val createdAt: String? = null,
+    // Upstream contract: epoch-millis number (SQLite INTEGER).
+    val createdAt: Long? = null,
 )
 
 @Serializable
@@ -46,7 +52,8 @@ data class Dot(
     val instructions: String = "",
     val researchAllowed: Boolean = false,
     val memoryAllowed: Boolean = false,
-    val createdAt: String? = null,
+    // Upstream contract: epoch-millis number (SQLite INTEGER).
+    val createdAt: Long? = null,
 )
 
 @Serializable
@@ -55,7 +62,8 @@ data class Conversation(
     val dotId: String,
     val ownerId: String? = null,
     val title: String? = null,
-    val createdAt: String? = null,
+    // Upstream contract: epoch-millis number (SQLite INTEGER).
+    val createdAt: Long? = null,
 )
 
 @Serializable
@@ -74,8 +82,9 @@ data class Page(
     val title: String,
     val content: String = "",
     val revision: Int = 1,
-    val createdAt: String? = null,
-    val updatedAt: String? = null,
+    // Upstream contract (src/server/pages.ts): epoch-millis numbers.
+    val createdAt: Long? = null,
+    val updatedAt: Long? = null,
     val sourceThreadId: String? = null,
 )
 

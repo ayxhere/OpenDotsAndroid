@@ -5,6 +5,8 @@ import imayx.opendots.node.NodeManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -27,6 +29,14 @@ class ApiClient(
     private val baseUrl = baseUrl.trimEnd('/')
     @PublishedApi
     internal val json = Json { ignoreUnknownKeys = true }
+
+    // Short-TTL in-memory cache for the workspace (spaces/dots/conversations).
+    // Survives rapid tab switches without refetching; mutations invalidate it.
+    // Honest by construction: TTL is 30s and every mutation clears it.
+    private var workspaceCache: Pair<Long, WorkspaceResponse>? = null
+    private val workspaceCacheTtlMs = 30_000L
+
+    private fun invalidateWorkspaceCache() { workspaceCache = null }
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(5, TimeUnit.SECONDS)
@@ -116,11 +126,27 @@ class ApiClient(
 
     suspend fun getState(): ApiResult<ApiState> = getParsed("/state")
 
-    suspend fun getWorkspace(): ApiResult<WorkspaceResponse> = getParsed("/workspace")
+    suspend fun getWorkspace(forceRefresh: Boolean = false): ApiResult<WorkspaceResponse> {
+        val now = android.os.SystemClock.elapsedRealtime()
+        val cached = workspaceCache
+        if (!forceRefresh && cached != null && now - cached.first < workspaceCacheTtlMs) {
+            return ApiResult.Ok(cached.second)
+        }
+        return when (val r = getParsed<WorkspaceResponse>("/workspace")) {
+            is ApiResult.Ok -> {
+                workspaceCache = now to r.value
+                r
+            }
+            else -> r
+        }
+    }
 
     suspend fun createSpace(name: String, description: String? = null): ApiResult<Space> {
         val body = buildJsonString("name" to name, "description" to description)
-        return postParsed("/spaces", body)
+        return when (val r = postParsed<Space>("/spaces", body)) {
+            is ApiResult.Ok -> { invalidateWorkspaceCache(); r }
+            else -> r
+        }
     }
 
     suspend fun createDot(
@@ -137,11 +163,17 @@ class ApiClient(
             "researchAllowed" to researchAllowed,
             "memoryAllowed" to memoryAllowed,
         )
-        return postParsed("/dots", body)
+        return when (val r = postParsed<Dot>("/dots", body)) {
+            is ApiResult.Ok -> { invalidateWorkspaceCache(); r }
+            else -> r
+        }
     }
 
     suspend fun createConversation(dotId: String, title: String? = null): ApiResult<Conversation> =
-        postParsed("/conversations", buildJsonString("dotId" to dotId, "title" to title))
+        when (val r = postParsed<Conversation>("/conversations", buildJsonString("dotId" to dotId, "title" to title))) {
+            is ApiResult.Ok -> { invalidateWorkspaceCache(); r }
+            else -> r
+        }
 
     /**
      * Approves a page draft by creating the reviewed page.
@@ -215,20 +247,27 @@ class ApiClient(
             is ApiResult.NetworkError -> r
         }
 
-    private fun buildJsonString(vararg pairs: Pair<String, Any?>): String {
-        val sb = StringBuilder("{")
-        var first = true
+}
+
+/**
+ * Builds a JSON object string with correct escaping (newlines, quotes,
+ * control characters). The previous hand-rolled builder emitted invalid JSON
+ * for multiline page content. Top-level so unit tests can call it without an
+ * [ApiClient] instance (which needs an Android Context for its TokenStore).
+ */
+internal fun buildJsonString(vararg pairs: Pair<String, Any?>): String =
+    buildJsonObject {
         for ((k, v) in pairs) {
-            if (v == null) continue
-            if (!first) sb.append(',')
-            first = false
-            sb.append('"').append(k).append("\":")
             when (v) {
-                is String -> sb.append('"').append(v.replace("\\", "\\\\").replace("\"", "\\\"")).append('"')
-                is Boolean, is Number -> sb.append(v.toString())
-                else -> sb.append('"').append(v.toString().replace("\"", "\\\"")).append('"')
+                null -> Unit // skip absent optionals
+                is String -> put(k, v)
+                is Boolean -> put(k, v)
+                is Int -> put(k, v)
+                is Long -> put(k, v)
+                is Double -> put(k, v)
+                is Float -> put(k, v)
+                is Number -> put(k, v.toDouble())
+                else -> put(k, v.toString())
             }
         }
-        return sb.append('}').toString()
-    }
-}
+    }.toString()

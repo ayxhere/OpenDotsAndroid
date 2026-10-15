@@ -3,6 +3,7 @@ package imayx.opendots.ui.screens
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,17 +15,16 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -38,7 +38,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -51,7 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import imayx.opendots.ai.AiProviderConfig
 import imayx.opendots.ai.AiProviderStore
 import imayx.opendots.ai.AiProviderType
@@ -59,6 +58,10 @@ import imayx.opendots.ai.AiProxyTransport
 import imayx.opendots.ai.AiRouterSettings
 import imayx.opendots.ai.AiRouterSettingsStore
 import imayx.opendots.auth.TokenStore
+import imayx.opendots.ui.components.OdEmpty
+import imayx.opendots.ui.components.OdHeader
+import imayx.opendots.ui.components.OdLoading
+import imayx.opendots.ui.theme.OdSpacing
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -94,98 +97,90 @@ fun AiProvidersScreen(onBack: () -> Unit) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("AI Providers") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
+            OdHeader(
+                title = "AI Providers",
+                subtitle = if (providers.isNotEmpty()) "${providers.count { it.enabled }} of ${providers.size} enabled" else null,
+                onBack = onBack,
+                modifier = Modifier.padding(horizontal = OdSpacing.screen).padding(top = OdSpacing.s),
                 actions = {
                     TextButton(onClick = { showRouterSettings = true }) { Text("Router") }
                     IconButton(onClick = { creating = true }) {
                         Icon(Icons.Filled.Add, contentDescription = "Add provider")
                     }
-                }
+                },
             )
         },
-        snackbarHost = { SnackbarHost(snackbar) }
+        snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
-        if (loading) {
-            Column(
-                Modifier.fillMaxSize().padding(padding),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) { CircularProgressIndicator() }
-            return@Scaffold
-        }
-        if (providers.isEmpty()) {
-            Column(
-                Modifier.fillMaxSize().padding(padding).padding(32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+        when {
+            loading -> OdLoading(
+                text = "Loading providers…",
+                modifier = Modifier.fillMaxSize().padding(padding),
+            )
+            providers.isEmpty() -> OdEmpty(
+                title = "No AI providers configured",
+                body = "Add OpenAI, Anthropic, Gemini, Groq, OpenRouter or any OpenAI-compatible endpoint. Keys are stored encrypted on this device only.",
+                icon = Icons.Filled.SmartToy,
+                actionLabel = "Add provider",
+                onAction = { creating = true },
+                modifier = Modifier.fillMaxSize().padding(padding),
+            )
+            else -> LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(
+                    start = OdSpacing.screen,
+                    end = OdSpacing.screen,
+                    top = OdSpacing.m,
+                    bottom = OdSpacing.m,
+                ),
+                verticalArrangement = Arrangement.spacedBy(OdSpacing.s),
             ) {
-                Text("No AI providers configured.", style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Add OpenAI, Anthropic, Gemini, Groq, OpenRouter or any OpenAI-compatible endpoint. Keys are stored encrypted on this device only.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(16.dp))
-                Button(onClick = { creating = true }) { Text("Add provider") }
-            }
-            return@Scaffold
-        }
-        LazyColumn(
-            Modifier.fillMaxSize().padding(padding).padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            item {
-                Text(
-                    "Tried in order (top first). Use ↑ ↓ to change failover priority.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            items(providers, key = { it.id }) { p ->
-                ProviderRow(
-                    config = p,
-                    isFirst = providers.firstOrNull()?.id == p.id,
-                    isLast = providers.lastOrNull()?.id == p.id,
-                    onMoveUp = {
-                        val i = providers.indexOf(p)
-                        if (i > 0) scope.launch {
-                            val ids = providers.toMutableList()
-                            val tmp = ids[i - 1]; ids[i - 1] = ids[i]; ids[i] = tmp
-                            providers = store.reorder(ids.map { it.id })
-                        }
-                    },
-                    onMoveDown = {
-                        val i = providers.indexOf(p)
-                        if (i < providers.size - 1) scope.launch {
-                            val ids = providers.toMutableList()
-                            val tmp = ids[i + 1]; ids[i + 1] = ids[i]; ids[i] = tmp
-                            providers = store.reorder(ids.map { it.id })
-                        }
-                    },
-                    onToggle = { scope.launch { providers = store.update(p.copy(enabled = !p.enabled)) } },
-                    onEdit = { editing = p },
-                    onDelete = {
-                        scope.launch {
-                            tokenStore.clearSecret(keyAlias(p.id))
-                            providers = store.remove(p.id)
-                            snackbar.showSnackbar("Removed ${p.name}")
-                        }
-                    },
-                    onTest = { onResult ->
-                        scope.launch {
-                            val key = tokenStore.getSecret(keyAlias(p.id)) ?: ""
-                            val r = transport.testConnection(p.type, p.baseUrl, key, p.model)
-                            onResult(r.ok, r.message)
-                        }
-                    }
-                )
+                item {
+                    Text(
+                        "Tried in order (top first). Use ↑ ↓ to change failover priority.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                items(providers, key = { it.id }) { p ->
+                    ProviderRow(
+                        config = p,
+                        isFirst = providers.firstOrNull()?.id == p.id,
+                        isLast = providers.lastOrNull()?.id == p.id,
+                        onMoveUp = {
+                            val i = providers.indexOf(p)
+                            if (i > 0) scope.launch {
+                                val ids = providers.toMutableList()
+                                val tmp = ids[i - 1]; ids[i - 1] = ids[i]; ids[i] = tmp
+                                providers = store.reorder(ids.map { it.id })
+                            }
+                        },
+                        onMoveDown = {
+                            val i = providers.indexOf(p)
+                            if (i < providers.size - 1) scope.launch {
+                                val ids = providers.toMutableList()
+                                val tmp = ids[i + 1]; ids[i + 1] = ids[i]; ids[i] = tmp
+                                providers = store.reorder(ids.map { it.id })
+                            }
+                        },
+                        onToggle = { scope.launch { providers = store.update(p.copy(enabled = !p.enabled)) } },
+                        onEdit = { editing = p },
+                        onDelete = {
+                            scope.launch {
+                                tokenStore.clearSecret(keyAlias(p.id))
+                                providers = store.remove(p.id)
+                                snackbar.showSnackbar("Removed ${p.name}")
+                            }
+                        },
+                        onTest = { onResult ->
+                            scope.launch {
+                                val key = tokenStore.getSecret(keyAlias(p.id)) ?: ""
+                                val r = transport.testConnection(p.type, p.baseUrl, key, p.model)
+                                onResult(r.ok, r.message)
+                            }
+                        },
+                    )
+                }
             }
         }
     }
@@ -226,7 +221,7 @@ fun AiProvidersScreen(onBack: () -> Unit) {
                     val r = transport.testConnection(type, baseUrl.takeIf { it.isNotBlank() }, apiKey, model)
                     onDone(r.ok, r.message)
                 }
-            }
+            },
         )
     }
 
@@ -240,7 +235,7 @@ fun AiProvidersScreen(onBack: () -> Unit) {
                     settings = s
                     showRouterSettings = false
                 }
-            }
+            },
         )
     }
 }
@@ -261,25 +256,33 @@ private fun ProviderRow(
     var testResult by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = if (config.enabled) MaterialTheme.colorScheme.surfaceVariant
-            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            containerColor = if (config.enabled) MaterialTheme.colorScheme.surfaceContainer
+            else MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.5f),
         ),
-        modifier = Modifier.fillMaxWidth().clickable { onEdit() }
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth().clickable { onEdit() },
     ) {
-        Column(Modifier.padding(12.dp)) {
+        Column(Modifier.padding(OdSpacing.m)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(config.name, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        config.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     Text(
                         "${config.type.displayName} · ${config.model}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     if (config.freeOnly) {
                         Text(
                             "free-fallback only",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.tertiary
+                            color = MaterialTheme.colorScheme.tertiary,
                         )
                     }
                 }
@@ -291,29 +294,32 @@ private fun ProviderRow(
                 }
                 Switch(checked = config.enabled, onCheckedChange = { onToggle() })
             }
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(OdSpacing.xs))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(
                     onClick = {
                         testing = true; testResult = null
                         onTest { ok, msg -> testing = false; testResult = ok to msg }
                     },
-                    enabled = !testing
+                    enabled = !testing,
                 ) { Text(if (testing) "Testing…" else "Test") }
                 IconButton(onClick = onDelete) {
                     Icon(Icons.Filled.Delete, contentDescription = "Remove", tint = MaterialTheme.colorScheme.error)
                 }
                 testResult?.let { (ok, msg) ->
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(OdSpacing.s))
                     Icon(
                         if (ok) Icons.Filled.Check else Icons.Filled.Close,
                         contentDescription = null,
-                        tint = if (ok) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error
+                        tint = if (ok) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error,
                     )
                     Text(
-                        msg.take(80),
+                        msg.take(120),
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (ok) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error
+                        color = if (ok) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
                     )
                 }
             }
@@ -349,14 +355,15 @@ private fun ProviderEditorDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = MaterialTheme.shapes.large,
         title = { Text(if (existing != null) "Edit provider" else "Add provider") },
         text = {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(OdSpacing.s)) {
                 item {
                     OutlinedTextField(
                         value = name, onValueChange = { name = it },
                         label = { Text("Name") }, modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        singleLine = true, shape = MaterialTheme.shapes.small,
                     )
                 }
                 item {
@@ -369,13 +376,13 @@ private fun ProviderEditorDialog(
                                     Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Choose")
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.small,
                         )
                         DropdownMenu(expanded = typeMenu, onDismissRequest = { typeMenu = false }) {
                             AiProviderType.values().forEach { t ->
                                 DropdownMenuItem(
                                     text = { Text(t.displayName) },
-                                    onClick = { type = t; typeMenu = false; fetchedModels = emptyList() }
+                                    onClick = { type = t; typeMenu = false; fetchedModels = emptyList() },
                                 )
                             }
                         }
@@ -387,7 +394,8 @@ private fun ProviderEditorDialog(
                             value = baseUrl, onValueChange = { baseUrl = it },
                             label = { Text("Base URL (https)") },
                             placeholder = { Text("https://my-gateway.example.com/v1") },
-                            modifier = Modifier.fillMaxWidth(), singleLine = true
+                            modifier = Modifier.fillMaxWidth(), singleLine = true,
+                            shape = MaterialTheme.shapes.small,
                         )
                     }
                 }
@@ -402,13 +410,14 @@ private fun ProviderEditorDialog(
                                     Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Models")
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth(), singleLine = true
+                            modifier = Modifier.fillMaxWidth(), singleLine = true,
+                            shape = MaterialTheme.shapes.small,
                         )
                         DropdownMenu(expanded = modelMenu, onDismissRequest = { modelMenu = false }) {
                             fetchedModels.take(100).forEach { m ->
                                 DropdownMenuItem(
                                     text = { Text(m) },
-                                    onClick = { model = m; modelMenu = false }
+                                    onClick = { model = m; modelMenu = false },
                                 )
                             }
                         }
@@ -425,13 +434,13 @@ private fun ProviderEditorDialog(
                                         r.onFailure { testMsg = "Model list failed: ${it.message}" }
                                     }
                                 },
-                                enabled = apiKey.isNotBlank() && !fetchingModels
+                                enabled = apiKey.isNotBlank() && !fetchingModels,
                             ) { Text(if (fetchingModels) "Loading…" else "Fetch models from API") }
                         }
                         Text(
                             "Enter the key first, then fetch — or type the model ID manually.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
@@ -445,12 +454,13 @@ private fun ProviderEditorDialog(
                                 Text(if (keyVisible) "Hide" else "Show")
                             }
                         },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true
+                        modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        shape = MaterialTheme.shapes.small,
                     )
                     Text(
                         "Stored encrypted in the Android Keystore. Never leaves this device except to the provider via the local backend.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 item {
@@ -463,10 +473,17 @@ private fun ProviderEditorDialog(
                                     testMsg = (if (ok) "✓ " else "✗ ") + msg
                                 }
                             },
-                            enabled = apiKey.isNotBlank() && model.trim().isNotEmpty() && !testing
+                            enabled = apiKey.isNotBlank() && model.trim().isNotEmpty() && !testing,
                         ) { Text(if (testing) "Testing…" else "Test connection") }
                     }
-                    testMsg?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    testMsg?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 4,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
             }
         },
@@ -475,7 +492,7 @@ private fun ProviderEditorDialog(
                 Text("Save")
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }
 
@@ -492,9 +509,10 @@ private fun RouterSettingsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = MaterialTheme.shapes.large,
         title = { Text("Router & failover") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(OdSpacing.m)) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Text("Automatic failover", Modifier.weight(1f))
                     Switch(checked = autoFailover, onCheckedChange = { autoFailover = it })
@@ -502,7 +520,7 @@ private fun RouterSettingsDialog(
                 Text(
                     "On timeout, rate limit, outage or missing model, try the next enabled provider in priority order.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Text("Free-model-only fallback", Modifier.weight(1f))
@@ -511,17 +529,19 @@ private fun RouterSettingsDialog(
                 Text(
                     "Fallback attempts only use models known to be free (e.g. OpenRouter :free models). Never falls back from a paid model to another paid model.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 OutlinedTextField(
                     value = maxCost, onValueChange = { maxCost = it.filter { c -> c.isDigit() || c == '.' } },
                     label = { Text("Max cost per run (USD, empty = no cap)") },
-                    modifier = Modifier.fillMaxWidth(), singleLine = true
+                    modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    shape = MaterialTheme.shapes.small,
                 )
                 OutlinedTextField(
                     value = maxAttempts, onValueChange = { maxAttempts = it.filter { c -> c.isDigit() }.take(1) },
                     label = { Text("Max provider attempts per message") },
-                    modifier = Modifier.fillMaxWidth(), singleLine = true
+                    modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    shape = MaterialTheme.shapes.small,
                 )
             }
         },
@@ -534,10 +554,10 @@ private fun RouterSettingsDialog(
                         maxCostUsd = maxCost.toDoubleOrNull(),
                         maxAttempts = maxAttempts.toIntOrNull()?.coerceIn(1, 9) ?: 3,
                         attemptTimeoutSec = settings.attemptTimeoutSec,
-                    )
+                    ),
                 )
             }) { Text("Save") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }

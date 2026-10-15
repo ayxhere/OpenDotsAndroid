@@ -1,5 +1,0 @@
-# ninja log v5
-0	1309	1792009547737557994	CMakeFiles/odnode.dir/node_bridge.cpp.o	bbf423bc7fc8056c
-1311	1386	1792009547818557997	/home/hatch/workspace/opendots-android/app/build/intermediates/cxx/Debug/6i4u4n18/obj/arm64-v8a/libodnode.so	eb70c4b9b9da04
-212	2523	1792033346236866514	CMakeFiles/odnode.dir/node_bridge.cpp.o	bbf423bc7fc8056c
-2525	2930	1792033346651941884	/home/hatch/workspace/opendots-android/app/build/intermediates/cxx/Debug/6i4u4n18/obj/arm64-v8a/libodnode.so	eb70c4b9b9da04

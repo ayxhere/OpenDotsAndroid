@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Auto Backup: keep the workspace database, exclude the backend bundle
+     (re-extracted from assets) and volatile logs/locks. -->
+<full-backup-content>
+    <include domain="file" path="node-home/opendots.sqlite" />
+    <include domain="file" path="node-home/opendots.sqlite-wal" />
+    <include domain="file" path="node-home/opendots.sqlite-shm" />
+    <include domain="sharedpref" path="opendots_prefs.xml" />
+    <exclude domain="file" path="node-home/backend/" />
+    <exclude domain="file" path="node-home/logs/" />
+    <exclude domain="file" path="node-home/.node.lock" />
+</full-backup-content>

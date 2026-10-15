@@ -1,0 +1,3 @@
+/home/hatch/workspace/opendots-android/app/.cxx/Debug/6i4u4n18/x86_64/CMakeFiles/odnode.dir
+/home/hatch/workspace/opendots-android/app/.cxx/Debug/6i4u4n18/x86_64/CMakeFiles/edit_cache.dir
+/home/hatch/workspace/opendots-android/app/.cxx/Debug/6i4u4n18/x86_64/CMakeFiles/rebuild_cache.dir

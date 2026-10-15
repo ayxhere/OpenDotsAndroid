@@ -1,0 +1,26 @@
+--- a/src/server/index.ts
++++ b/src/server/index.ts
+@@ -3,6 +3,7 @@
+ import { reportChannelFailure, safeFailure } from './slack-channel.js';
+ import { serve } from '@hono/node-server';
+ import { serveStatic } from '@hono/node-server/serve-static';
++import { existsSync } from 'node:fs';
+ import { Store } from './store.js';
+ import { Runner } from './runner.js';
+ import { createApp } from './app.js';
+@@ -106,8 +107,13 @@
+   await next();
+ });
+ app.get('/api/*', (c) => c.json({ error: 'Not found.' }, 404));
+-app.use('/*', serveStatic({ root: './dist/client' }));
+-app.get('*', serveStatic({ path: './dist/client/index.html' }));
++// Android port: the React SPA is replaced by the native Android UI, so its
++// build output is not bundled in the APK. Only serve it when present
++// (desktop deployments).
++if (existsSync('./dist/client/index.html')) {
++  app.use('/*', serveStatic({ root: './dist/client' }));
++  app.get('*', serveStatic({ path: './dist/client/index.html' }));
++}
+ const server = serve({ fetch: app.fetch, hostname: host, port }, (info) => {
+   console.log(`OpenDots template listening on http://${host}:${info.port}`);
+   runner.start();

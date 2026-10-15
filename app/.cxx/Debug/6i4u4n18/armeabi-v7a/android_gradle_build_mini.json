@@ -1,0 +1,29 @@
+{
+  "buildFiles": [
+    "/home/hatch/workspace/opendots-android/app/src/main/cpp/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/home/hatch/android-sdk/cmake/3.22.1/bin/ninja",
+      "-C",
+      "/home/hatch/workspace/opendots-android/app/.cxx/Debug/6i4u4n18/armeabi-v7a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/home/hatch/android-sdk/cmake/3.22.1/bin/ninja",
+    "-C",
+    "/home/hatch/workspace/opendots-android/app/.cxx/Debug/6i4u4n18/armeabi-v7a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "odnode::@6890427a1f51a3e7e1df": {
+      "artifactName": "odnode",
+      "abi": "armeabi-v7a",
+      "output": "/home/hatch/workspace/opendots-android/app/build/intermediates/cxx/Debug/6i4u4n18/obj/armeabi-v7a/libodnode.so",
+      "runtimeFiles": [
+        "/home/hatch/workspace/opendots-android/app/src/main/jniLibs/armeabi-v7a/libnode.so"
+      ]
+    }
+  }
+}

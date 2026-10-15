@@ -1,0 +1,23 @@
+--- a/src/server/app.ts
++++ b/src/server/app.ts
+@@ -69,6 +69,10 @@
+       return c.json({ error: 'Cross-origin requests are not allowed.' }, 403);
+     if (c.req.header('sec-fetch-site') === 'cross-site')
+       return c.json({ error: 'Cross-site requests are not allowed.' }, 403);
++    // Android port: the minimal health probe stays reachable without the
++    // owner token. It returns no sensitive data (see the /api/health route
++    // below); host/origin/fetch-site checks above still apply.
++    if (c.req.path === '/api/health') return next();
+     if (ownerToken) {
+       const expected = Buffer.from(ownerToken);
+       const supplied = Buffer.from(
+@@ -98,6 +102,9 @@
+     );
+   const voice = platform ? new VoiceService(platform) : undefined;
+   if (platform && voice) app.route('/api', workspaceRoutes(platform, voice));
++  // Android port: minimal unauthenticated health probe used by the Android
++  // runtime manager for startup/readiness checks. Returns no sensitive data.
++  app.get('/api/health', (c) => c.json({ ok: true, version: '0.1.0' }));
+   app.get('/api/state', (c) =>
+     c.json({
+       settings: store.settings(),
